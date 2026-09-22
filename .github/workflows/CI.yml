@@ -8,15 +8,17 @@ on:
     branches: [ "**" ]
   pull_request:
     branches: [ "master" ]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   format:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.os}}-${{matrix.os-version}}
     strategy:
-      matrix:
+      matrix: &matrix-config
         go-version: [1.12, 1.16]
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu, windows]
+        include:
+          - os-version: latest
 
     steps:
       - name: Checkout
@@ -41,12 +43,10 @@ jobs:
         run: echo "gofmt necesario → ❌"
         
   dependencies:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.os}}-${{matrix.os-version}}
     needs: [ format ]
     strategy:
-      matrix:
-        go-version: [1.12, 1.16]
-        os: [ubuntu-latest, windows-latest]
+      matrix: *matrix-config
 
     steps:
       - name: Checkout
@@ -72,12 +72,10 @@ jobs:
         run: echo "diferencias después de tidy → ❌"
         
   analysis:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.os}}-${{matrix.os-version}}
     needs: [ dependencies ]
     strategy:
-      matrix:
-        go-version: [1.12, 1.16]
-        os: [ubuntu-latest, windows-latest]
+      matrix: *matrix-config
 
     steps:
       - name: Checkout
@@ -101,16 +99,11 @@ jobs:
         run: echo "vet check failure -> ❌"
   
   test:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.os}}-${{matrix.os-version}}
     needs: [ analysis ]
     strategy:
-      matrix:
-        go-version: [1.12, 1.16]
-        os: [ubuntu-latest, windows-latest]
-        os-short: [ubuntu, windows]
-        include:
-          - single-exec: true
-
+      matrix: *matrix-config
+      
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -121,29 +114,23 @@ jobs:
           go-version: ${{matrix.go-version}}
 
       - name: Create Coverage Folder
-        if: ${{matrix.single-exec == true}}
+        shell: bash
         run: mkdir -p coverage
 
       - name: Test Execution
-        run: go test ./... -coverprofile=coverage/coverage-${{matrix.os-short}}.out
+        run: go test ./... -coverprofile=coverage/coverage-${{matrix.os}}.out
 
       - name: Upload Coverage Artifact
-        if: ${{matrix.single-exec == true}}
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: test
+          name: coverage-${{matrix.os}}-${{matrix.go-version}}
           path: coverage/
 
   build:
-    runs-on: ${{matrix.os}}
+    runs-on: ${{matrix.os}}-${{matrix.os-version}}
     needs: [ test ]
     strategy:
-      matrix:
-        go-version: [1.12, 1.16]
-        os: [ubuntu-latest, windows-latest]
-        os-short: [ubuntu, windows]
-        include:
-          - single-exec: true
+      matrix: *matrix-config
 
     steps:
       - name: Checkout
@@ -159,7 +146,7 @@ jobs:
         run: go build ./...
 
       - name: Summary
-        run: echo "${{matrix.os}} + Go ${{matrix.go-version}} -> ${{steps.build.outcome}}" >> $GITHUB_STEP_SUMMARY
+        run: echo "${{matrix.os}}-${{matrix.os-version}} + Go ${{matrix.go-version}} -> ${{steps.build.outcome}}" >> $GITHUB_STEP_SUMMARY
 
 
           
