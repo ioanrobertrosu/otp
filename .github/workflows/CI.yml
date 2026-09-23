@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{matrix.os}}-${{matrix.os-version}}
     strategy:
       matrix: &matrix-config
-        go-version: [1.12, 1.16]
+        go-version: ["1.12", "1.16"]
         os: [ubuntu, windows]
         include:
           - os-version: latest
@@ -33,14 +33,6 @@ jobs:
         shell: bash
         id: format-validation
         run: test -z "$(gofmt -l .)"
-        
-      - name: Job Result
-        if: ${{steps.format-validation.outcome == 'success'}}
-        run: echo "gofmt no necesita cambios → ✅"
-
-      - name: Job Result  
-        if: ${{always() && steps.format-validation.outcome == 'failure'}}
-        run: echo "gofmt necesario → ❌"
         
   dependencies:
     runs-on: ${{matrix.os}}-${{matrix.os-version}}
@@ -62,15 +54,7 @@ jobs:
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum
-
-      - name: Job Result
-        if: ${{steps.check-dependencies.outcome == 'success'}}
-        run: echo "repositorio correctamente tidy → ✅"
-
-      - name: Job Result
-        if: ${{always() && steps.check-dependencies.outcome == 'failure'}}
-        run: echo "diferencias después de tidy → ❌"
-        
+          
   analysis:
     runs-on: ${{matrix.os}}-${{matrix.os-version}}
     needs: [ dependencies ]
@@ -89,15 +73,6 @@ jobs:
       - name: Check Code Errors
         id: check-code-errors
         run: go vet ./...
-
-      - name: Job Result
-        if: ${{steps.check-code-errors.outcome == 'success'}}
-        run: echo "vet check success -> ✅"
-
-      - name: Job Result
-        if: ${{always() && steps.check-code-errors.outcome == 'failure'}}
-        run: echo "vet check failure -> ❌"
-  
   test:
     runs-on: ${{matrix.os}}-${{matrix.os-version}}
     needs: [ analysis ]
@@ -118,13 +93,14 @@ jobs:
         run: mkdir -p coverage
 
       - name: Test Execution
-        run: go test ./... -coverprofile=coverage/coverage-${{matrix.os}}.out
+        run: go test ./... -race -count=1 -coverprofile=coverage/coverage-${{matrix.os}}.out
 
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@v7.0.1
         with:
           name: coverage-${{matrix.os}}-${{matrix.go-version}}
           path: coverage/
+          if-no-files-found: error
 
   build:
     runs-on: ${{matrix.os}}-${{matrix.os-version}}
